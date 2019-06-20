@@ -175,6 +175,8 @@ def add_weekmenu_to_calendar(service, weekmenu_df, calendarId):
         event = {
         'summary': r.recipe,
         'description': r.description,
+        'location': r.url,
+        'reminders.useDefault': 'false',
         'start': {
             'date': i.date().isoformat(),
             'timeZone': 'Europe/Brussels'
@@ -223,7 +225,7 @@ def choose_recipe(difficulty, idx, weekmenu_df, eligible_recipes):
     Parameters
     ----------
     difficulty : str
-        difficulty of the recipe, can be 'easy', 'medium' or 'difficult'
+        difficulty of the recipe, can be 'normal' or 'difficult'
     idx : datetime index
         index in the dataFrame that will contain the week menu and for which a recipe is chosen
     weekmenu_df : Pandas DataFrame
@@ -236,9 +238,13 @@ def choose_recipe(difficulty, idx, weekmenu_df, eligible_recipes):
     choice_idx : datetime index
         index of the chosen recipe in the eligible_recipes dataFrame
     """
-    choice_idx = np.random.choice(eligible_recipes.query("difficulty == 'difficult'" ).sort_values('last_date_on_menu', na_position='first').index.values[:5])
+    eligible_recipes = eligible_recipes[eligible_recipes['difficulty']==difficulty]
+    #choice_idx = np.random.choice(eligible_recipes.query("difficulty == 'difficult'" ).sort_values('last_date_on_menu', na_position='first').index.values[:5])
+    choice_idx = np.random.choice(eligible_recipes.sort_values('last_date_on_menu', na_position='first').index.values[:5])
+
     weekmenu_df.loc[idx, 'recipe'] = eligible_recipes.loc[choice_idx, 'recipe']
     weekmenu_df.loc[idx, 'description'] = eligible_recipes.loc[choice_idx, 'description']
+    weekmenu_df.loc[idx, 'url'] = eligible_recipes.loc[choice_idx, 'url']
     eligible_recipes.drop(choice_idx, inplace=True)
     return choice_idx
 
@@ -256,7 +262,7 @@ def update_sheet(service, row_number, date, spreadsheetId):
     spreadsheetId : str
         ID of the Google Spreadsheet
     """
-    range = "recepten!F"  + str(row_number)
+    range = "recipies!G"  + str(row_number)
     values = [[date]]
     body = {'values' : values}
     result = service.spreadsheets().values().update(spreadsheetId=spreadsheetId
@@ -290,23 +296,20 @@ def generate_weekmenu(service, events_df, traditions, free_events):
         if r.weekday in traditions.keys():
             weekmenu_df.loc[i, 'recipe'] = traditions[r.weekday]
             weekmenu_df.loc[i, 'description'] = ''
+            weekmenu_df.loc[i, 'url'] = ''
         else:
             if r.weekday in ['Saturday', 'Sunday']:
                 row_number = choose_recipe('difficult', i, weekmenu_df, eligible_recipes)
                 update_sheet(service, row_number, i.strftime('%d-%m-%Y'), cfg.SPREADSHEET_ID)
-            elif r.events_cal_1 in free_events or r.events_cal_2 in free_events \
-            or pd.isnull(r.events_cal_1) or pd.isnull(r.events_cal_2):
-                row_number = choose_recipe('medium', i, weekmenu_df, eligible_recipes)
-                update_sheet(service, row_number, i.strftime('%d-%m-%Y'), cfg.SPREADSHEET_ID)
             else:
-                row_number = choose_recipe('easy', i, weekmenu_df, eligible_recipes)
+                row_number = choose_recipe('normal', i, weekmenu_df, eligible_recipes)
                 update_sheet(service, row_number, i.strftime('%d-%m-%Y'), cfg.SPREADSHEET_ID)
     return weekmenu_df
 
 
 if __name__ == '__main__':
     # Getting credentials from credentials.json
-    CREDS_PATH = Path.cwd() / "weekmenu" / "credentials.json"
+    CREDS_PATH = Path.cwd() / "credentials.json"
     creds = service_account.Credentials.from_service_account_file(CREDS_PATH, scopes=cfg.SCOPES)
 
     # Creating service objects
@@ -328,8 +331,8 @@ if __name__ == '__main__':
     # Check if the last weekmenu is still active
     if DATE_LAST_RECIPE - timedelta(days=cfg.NB_DAYS_BEFORE) < datetime.now().date():
         # Getting the events from the Google Calendars
-        events_list_1 = get_events_by_calendarId(service_cal, cfg.CALENDARID_1, START_DAY, NEXT_WEEK, cfg.ALL_EVENTS)
-        events_list_2 = get_events_by_calendarId(service_cal, cfg.CALENDARID_2, START_DAY, NEXT_WEEK, cfg.ALL_EVENTS)
+        events_list_1 = []  # get_events_by_calendarId(service_cal, cfg.CALENDARID_1, START_DAY, NEXT_WEEK, cfg.ALL_EVENTS)
+        events_list_2 = []  # get_events_by_calendarId(service_cal, cfg.CALENDARID_2, START_DAY, NEXT_WEEK, cfg.ALL_EVENTS)
 
         # Merge the two events lists
         events_df = create_events_df(events_list_1, events_list_2)
