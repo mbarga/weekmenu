@@ -124,6 +124,9 @@ def get_date_last_event(service, calendarId):
                                         , orderBy='startTime').execute()
     date_last_event = events_result.get('items', [])[-1]['start']['date'][:10]
     date_last_event = datetime.strptime(date_last_event, '%Y-%m-%d').date()
+    now = datetime.now().date()
+    if now > date_last_event:
+        date_last_event = now
     return date_last_event
 
 def create_events_df(events_list_1, events_list_2):
@@ -240,7 +243,7 @@ def choose_recipe(difficulty, idx, weekmenu_df, eligible_recipes):
     """
     eligible_recipes = eligible_recipes[eligible_recipes['difficulty']==difficulty]
     #choice_idx = np.random.choice(eligible_recipes.query("difficulty == 'difficult'" ).sort_values('last_date_on_menu', na_position='first').index.values[:5])
-    choice_idx = np.random.choice(eligible_recipes.sort_values('last_date_on_menu', na_position='first').index.values[:5])
+    choice_idx = np.random.choice(eligible_recipes.sort_values('last_date_on_menu', na_position='first').index.values[:10])
 
     weekmenu_df.loc[idx, 'recipe'] = eligible_recipes.loc[choice_idx, 'recipe']
     weekmenu_df.loc[idx, 'description'] = eligible_recipes.loc[choice_idx, 'description']
